@@ -1,5 +1,5 @@
 # Fedora release to build against. Must match the kinoite-main tag AND the akmods tag.
-ARG FEDORA_VERSION=44
+ARG FEDORA_VERSION=latest
 
 # Allow build scripts to be referenced without being copied into the final image
 FROM scratch AS ctx
