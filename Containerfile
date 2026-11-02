@@ -7,7 +7,7 @@ COPY build_files /
 COPY system_files /system_files
 
 # Prebuilt, signed kmods (incl. ryzen-smu) for Fedora's stock kernel
-FROM ghcr.io/ublue-os/akmods-extra:main-${FEDORA_VERSION} AS akmods-extra
+FROM ghcr.io/ublue-os/akmods-extra:main AS akmods-extra
 
 # Base Image
 FROM ghcr.io/ublue-os/kinoite-main:${FEDORA_VERSION}
