@@ -5,22 +5,15 @@ set -ouex pipefail
 # Copy the contents of system_files/ of the git repo to /
 cp -avf "/ctx/system_files"/. /
 
-### Install packages
+### Universal Blue signing key + ryzen-smu kmod
+# The addons package installs the signing cert (for Secure Boot MOK enrollment).
+dnf5 install -y /akmods/ublue-os/ublue-os-akmods-addons*.rpm
+dnf5 install -y /akmods/kmods/kmod-ryzen-smu*.rpm
 
-# Packages can be installed from any enabled yum repo on the image.
-# RPMfusion repos are available by default in ublue main images
-# List of rpmfusion packages can be found here:
-# https://mirrors.rpmfusion.org/mirrorlist?path=free/fedora/updates/43/x86_64/repoview/index.html&protocol=https&redirect=1
+### Install packages
 
 # this installs a package from fedora repos
 dnf5 install -y tmux
-
-# Use a COPR Example:
-#
-# dnf5 -y copr enable ublue-os/staging
-# dnf5 -y install package
-# Disable COPRs so they don't end up enabled on the final image:
-# dnf5 -y copr disable ublue-os/staging
 
 #### Example for enabling a System Unit File
 
