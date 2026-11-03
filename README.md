@@ -79,7 +79,7 @@ My notes: theme = [Modern Design Theme - Tela](https://github.com/vinceliuice/gr
 
 ### Windows boot entry
 Either enable os-prober (`GRUB_DISABLE_OS_PROBER=false` in `/etc/default/grub`, then `ujust regenerate-grub`), or add a `chainloader /EFI/Microsoft/Boot/bootmgfw.efi` entry in `/etc/grub.d/40_custom` using the UUID of the EFI partition:
-`<ESP UUID: fill in from lsblk -f>`.
+`ESP UUID: fill in from lsblk -f`.
 Keep the BitLocker recovery key handy before changing boot settings.
 
 ### Tablet kit (optional)
