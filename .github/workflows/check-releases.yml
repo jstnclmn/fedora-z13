@@ -1,0 +1,94 @@
+name: Check for new z13 releases
+
+# Opens (or updates) a GitHub issue when z13ctl-plus or z13gui-plus publishes a
+# release newer than the version pinned in build_files/build.sh.
+# It never edits the build itself: you review the release notes, then update
+# the version and checksum by hand.
+
+on:
+  schedule:
+    - cron: '17 9 * * 1' # Mondays 09:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Compare pinned versions with latest releases
+    runs-on: ubuntu-latest
+    steps:
+      # Same pinned checkout action as build.yml
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Check releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          check() {
+            local name="$1" repo="$2" varname="$3"
+
+            # Read the pinned version out of build.sh, e.g. Z13CTL_PLUS_VERSION="2.5.1"
+            local current
+            current="$(grep -E "^${varname}=" build_files/build.sh | head -1 | cut -d'"' -f2)"
+            if [[ -z "${current}" ]]; then
+              echo "::error::Could not find ${varname} in build_files/build.sh"
+              exit 1
+            fi
+
+            # Latest published (non-draft, non-prerelease) release
+            local latest
+            latest="$(gh api "repos/${repo}/releases/latest" --jq '.tag_name' | sed 's/^v//')"
+            echo "${name}: pinned=${current} latest=${latest}"
+
+            # Only act if latest is strictly newer than what is pinned
+            local newest
+            newest="$(printf '%s\n%s\n' "${current}" "${latest}" | sort -V | tail -1)"
+            if [[ "${current}" == "${latest}" || "${newest}" != "${latest}" ]]; then
+              echo "${name} is up to date."
+              return 0
+            fi
+
+            # GitHub reports a sha256 digest for release assets (may be missing on older releases)
+            local digest
+            digest="$(gh api "repos/${repo}/releases/latest" \
+              --jq '[.assets[] | select(.name | endswith("linux_amd64.rpm")) | .digest][0] // "not provided by GitHub"')"
+
+            local title="Update available: ${name} ${current} -> ${latest}"
+            local body
+            body="$(cat <<EOF
+          A newer release of **${name}** is available.
+
+          - Pinned in \`build_files/build.sh\`: \`${current}\`
+          - Latest release: \`${latest}\`
+          - Release notes: https://github.com/${repo}/releases/tag/v${latest}
+          - RPM digest reported by GitHub: \`${digest}\`
+
+          To update:
+          1. Read the release notes (and, for the GUI/controller pair, check they are compatible).
+          2. Edit \`build_files/build.sh\`: set \`${varname}\` to \`${latest}\` and update the matching \`*_SHA256\` value.
+             Confirm the checksum against the release page, not only against the digest above.
+          3. Commit. The build runs its guard checks and fails if the update breaks something.
+          4. After switching to the new image, test on the Z13 (\`z13ctl-plus status\`, undervolt, GUI).
+          EOF
+            )"
+
+            # Reuse an existing open issue for this package instead of creating duplicates
+            local existing
+            existing="$(gh issue list --state open --search "\"Update available: ${name}\" in:title" \
+              --json number --jq '.[0].number // empty')"
+
+            if [[ -n "${existing}" ]]; then
+              gh issue edit "${existing}" --title "${title}" --body "${body}"
+              echo "Updated issue #${existing}"
+            else
+              gh issue create --title "${title}" --body "${body}"
+            fi
+          }
+
+          check "z13ctl-plus" "aic0d3r/z13ctl-plus" "Z13CTL_PLUS_VERSION"
+          check "z13gui-plus" "aic0d3r/z13gui-plus" "Z13GUI_PLUS_VERSION"

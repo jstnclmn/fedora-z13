@@ -42,3 +42,24 @@ systemctl enable podman.socket
 # NOTE: the z13ctl-plus and z13gui-plus user daemons are intentionally NOT
 # enabled here. Test per-user first; once they work, add:
 #   systemctl --global enable z13ctl-plus.socket z13ctl-plus.service z13gui-plus.service
+
+### Build-time guard
+# Fail the build (instead of silently publishing a broken image) if something this
+# image depends on has gone missing, for example if the Bazzite base stops shipping
+# the ryzen_smu kernel module or a z13 package fails to install its files.
+ 
+KVER="$(ls /usr/lib/modules | sort -V | tail -1)"
+echo "Guard: checking kernel ${KVER}"
+ 
+# 1. ryzen_smu must exist for the kernel in the image
+modinfo -k "${KVER}" ryzen_smu > /dev/null
+echo "Guard: ryzen_smu module found, signer: $(modinfo -k "${KVER}" -F signer ryzen_smu || true)"
+ 
+# 2. The z13 packages must be installed and have shipped their key files
+rpm -q z13ctl-plus z13gui-plus
+test -x /usr/bin/z13ctl-plus
+test -f /usr/lib/udev/rules.d/99-z13ctl-plus.rules
+test -f /usr/lib/systemd/user/z13ctl-plus.service
+test -f /usr/lib/systemd/user/z13ctl-plus.socket
+ 
+echo "Guard: all checks passed"

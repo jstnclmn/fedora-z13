@@ -1,318 +1,142 @@
-# image-template
+# fedora-z13
 
-This repository is meant to be a template for building your own custom [bootc](https://github.com/bootc-dev/bootc) image. This template is the recommended way to make customizations to any image published by the Universal Blue Project.
+A custom [bootc](https://github.com/bootc-dev/bootc) image for the **ASUS ROG Flow Z13 (2025, Ryzen AI Max+ 395)**, built from the [Universal Blue image template](https://github.com/ublue-os/image-template).
 
-# Community
+- **Base:** `ghcr.io/ublue-os/bazzite:stable` (KDE Plasma, Bazzite kernel)
+- **Registry:** `ghcr.io/jstnclmn/fedora-z13`
+- **Rebuilds:** daily at 10:05 UTC, and on every push to `main`
 
-If you have questions about this template after following the instructions, try the following spaces:
-- [Universal Blue Forums](https://universal-blue.discourse.group/)
-- [Universal Blue Discord](https://discord.gg/8RZGC3uFzA)
-- [bootc discussion forums](https://github.com/bootc-dev/bootc/discussions) - This is not an Universal Blue managed space, but is an excellent resource if you run into issues with building bootc images.
+## What this adds on top of Bazzite
 
-# How to Use
+| Addition | Source | Notes |
+|---|---|---|
+| `z13ctl-plus` | [aic0d3r/z13ctl-plus](https://github.com/aic0d3r/z13ctl-plus) release RPM | Pinned version + SHA-256 in `build_files/build.sh` |
+| `z13gui-plus` | [aic0d3r/z13gui-plus](https://github.com/aic0d3r/z13gui-plus) release RPM | Pinned version + SHA-256 in `build_files/build.sh` |
+| `powertop`, `tmux` | Fedora repos | |
+| `ryzen_smu` module | Already shipped by Bazzite | Not installed here; the build **fails** if it disappears (see "Build guard") |
 
-To get started on your first bootc image, simply read and follow the steps in the next few headings.
-If you prefer instructions in video form, TesterTech created an excellent tutorial, embedded below.
+Not in the image on purpose: VS Code (runs in a distrobox), Brave Origin (Flatpak, switched to Origin mode in its settings), the GRUB theme and Windows boot entry (machine-local, see below), and `z13-tablet-kit`.
 
-[![Video Tutorial](https://img.youtube.com/vi/IxBl11Zmq5w/0.jpg)](https://www.youtube.com/watch?v=IxBl11Zmq5wE)
+## Installing
 
-## Step 0: Prerequisites
+1. Install stock **Bazzite (KDE, AMD/Intel graphics)** from the official ISO.
+2. Enroll the Universal Blue Secure Boot key if you use Secure Boot:
+   `ujust enroll-secure-boot-key`, reboot, choose "Enroll MOK", and enter the password
+   (`universalblue`; some older Bazzite docs say `ublue-os`).
+3. Switch to this image (the GHCR package must be public, or run `sudo podman login ghcr.io` with a token that has `read:packages`):
 
-These steps assume you have the following:
-- A Github Account
-- A machine running a bootc image (e.g. Bazzite, Bluefin, Aurora, or Fedora Atomic)
-- Experience installing and using CLI programs
+   ```
+   sudo bootc switch ghcr.io/jstnclmn/fedora-z13
+   systemctl reboot
+   ```
 
-## Step 1: Preparing the Template
+Rollback: `sudo bootc rollback` then reboot.
 
-### Step 1a: Copying the Template
+## First-boot checklist (one time per machine)
 
-Select `Use this Template` on this page. You can set the name and description of your repository to whatever you would like, but all other settings should be left untouched.
+These live in `/etc`, `/boot` or your home directory, so they survive image updates but are **not** part of the image.
 
-Once you have finished copying the template, you need to enable the Github Actions workflows for your new repository.
-To enable the workflows, go to the `Actions` tab of the new repository and click the button to enable workflows.
+- [ ] Add yourself to the `users` group (needed so the z13ctl-plus daemon can write hardware interfaces):
 
-### Step 1b: Cloning the New Repository
+  ```
+  getent group users                      # should print users:x:100:
+  sudo usermod -aG users "$USER"
+  ```
 
-Here I will defer to the much superior GitHub documentation on the matter. You can use whichever method is easiest.
-[GitHub Documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)
+  If `usermod` complains the group does not exist, copy it from `/usr/lib/group` first:
+  `grep '^users:' /usr/lib/group | sudo tee -a /etc/group`.
+  **Reboot**, then confirm `id` lists `users`.
+- [ ] Start the controller (and optionally the GUI) for your user:
 
-Once you have the repository on your local drive, proceed to the next step.
+  ```
+  systemctl --user enable --now z13ctl-plus.socket z13ctl-plus.service
+  systemctl --user enable --now z13gui-plus.service      # optional
+  ```
 
-## Step 2: Initial Setup
+- [ ] Verify the stack:
 
-### Step 2a: Creating a Cosign Key
+  ```
+  lsmod | grep ryzen_smu
+  ls -l /sys/kernel/ryzen_smu_drv/
+  z13ctl-plus status
+  z13ctl-plus undervolt --get
+  journalctl --user -u z13ctl-plus.service -b --no-pager | tail -20
+  ```
 
-Container signing is important for end-user security and is enabled on all Universal Blue images. By default the image builds *will fail* if you don't.
+## Machine-local settings
 
-First, install the [cosign CLI tool](https://edu.chainguard.dev/open-source/sigstore/cosign/how-to-install-cosign/#installing-cosign-with-the-cosign-binary)
-With the cosign tool installed, run inside your repo folder:
-
-```bash
-COSIGN_PASSWORD="" cosign generate-key-pair
-```
-
-The signing key will be used in GitHub Actions and will not work if it is password protected.
-
-> [!WARNING]
-> Be careful to *never* accidentally commit `cosign.key` into your git repo. If this key goes out to the public, the security of your repository is compromised.
-
-Next, you need to add the key to GitHub. This makes use of GitHub's secret signing system.
-
-<details>
-    <summary>Using the Github Web Interface (preferred)</summary>
-
-Go to your repository settings, under `Secrets and Variables` -> `Actions`
-![image](https://user-images.githubusercontent.com/1264109/216735595-0ecf1b66-b9ee-439e-87d7-c8cc43c2110a.png)
-Add a new secret and name it `SIGNING_SECRET`, then paste the contents of `cosign.key` into the secret and save it. Make sure it's the .key file and not the .pub file. Once done, it should look like this:
-![image](https://user-images.githubusercontent.com/1264109/216735690-2d19271f-cee2-45ac-a039-23e6a4c16b34.png)
-</details>
-<details>
-<summary>Using the Github CLI</summary>
-
-If you have the `github-cli` installed, run:
-
-```bash
-gh secret set SIGNING_SECRET < cosign.key
-```
-</details>
-
-### Step 2b: Choosing Your Base Image
-
-To choose a base image, simply modify the line in the container file starting with `FROM`. This will be the image your image derives from, and is your starting point for modifications.
-For a base image, you can choose any of the Universal Blue images or start from a Fedora Atomic system. Below this paragraph is a dropdown with a non-exhaustive list of potential base images.
-
-<details>
-    <summary>Base Images</summary>
-
-- Bazzite: `ghcr.io/ublue-os/bazzite:stable`
-- Aurora: `ghcr.io/ublue-os/aurora:stable`
-- Bluefin: `ghcr.io/ublue-os/bluefin:stable`
-- Universal Blue Base: `ghcr.io/ublue-os/base-main:latest`
-- Fedora: `quay.io/fedora/fedora-bootc:44`
-
-You can find more Universal Blue images on the [packages page](https://github.com/orgs/ublue-os/packages).
-</details>
-
-If you don't know which image to pick, choosing the one your system is currently on is the best bet for a smooth transition. To find out what image your system currently uses, run the following command:
-```bash
-sudo bootc status
-```
-This will show you all the info you need to know about your current image. The image you are currently on is displayed after `Booted image:`. Paste that information after the `FROM` statement in the Containerfile to set it as your base image.
-
-### Step 2c: Changing Names
-
-Change the `IMAGE_NAME` and `REPO_ORGANIZATION` variable inside the `image-template.env`
-
-To commit and push all the files changed and added in step 2 into your Github repository:
-```bash
-git add Containerfile image-template.env cosign.pub
-git commit -m "Initial Setup"
-git push
-```
-Once pushed, go look at the Actions tab on your Github repository's page.  The green checkmark should be showing on the top commit, which means your new image is ready!
-
-## Step 3: Switch to Your Image
-
-From your bootc system, run the following command substituting in your Github username and image name where noted.
-```bash
-sudo bootc switch ghcr.io/<username>/<image_name>
-```
-This should queue your image for the next reboot, which you can do immediately after the command finishes. You have officially set up your custom image! See the following section for an explanation of the important parts of the template for customization.
-
-# Repository Contents
-
-## Containerfile
-
-The [Containerfile](./Containerfile) defines the operations used to customize the selected image.This file is the entrypoint for your image build, and works exactly like a regular podman Containerfile. For reference, please see the [Podman Documentation](https://docs.podman.io/en/latest/Introduction.html).
-
-## build.sh
-
-The [build.sh](./build_files/build.sh) file is called from your Containerfile. It is the best place to install new packages or make any other customization to your system. There are customization examples contained within it for your perusal.
-
-## build.yml
-
-The [build.yml](./.github/workflows/build.yml) Github Actions workflow creates your custom OCI image and publishes it to the Github Container Registry (GHCR). By default, the image name will match the Github repository name.
-
-# Building Disk Images
-
-This template provides an out of the box workflow for creating disk images (ISO, qcow, raw) for your custom OCI image which can be used to directly install onto your machines.
-
-This template provides a way to upload the disk images that is generated from the workflow to a S3 bucket. The disk images will also be available as an artifact from the job, if you wish to use an alternate provider. To upload to S3 we use [rclone](https://rclone.org/) which is able to use [many S3 providers](https://rclone.org/s3/).
-
-## Setting Up ISO Builds
-
-The [build-disk.yml](./.github/workflows/build-disk.yml) Github Actions workflow creates a disk image from your OCI image by utilizing the [bootc-image-builder](https://osbuild.org/docs/bootc/). In order to use this workflow you must complete the following steps:
-
-1. Modify `disk_config/iso.toml` to point to your custom container image before generating an ISO image.
-2. If you changed your image name from the default in `build.yml` then in the `build-disk.yml` file edit the `IMAGE_REGISTRY`, `IMAGE_NAME` and `DEFAULT_TAG` environment variables with the correct values. If you did not make changes, skip this step.
-3. Finally, if you want to upload your disk images to S3 then you will need to add your S3 configuration to the repository's Action secrets. This can be found by going to your repository settings, under `Secrets and Variables` -> `Actions`. You will need to add the following
-  - `S3_PROVIDER` - Must match one of the values from the [supported list](https://rclone.org/s3/)
-  - `S3_BUCKET_NAME` - Your unique bucket name
-  - `S3_ACCESS_KEY_ID` - It is recommended that you make a separate key just for this workflow
-  - `S3_SECRET_ACCESS_KEY` - See above.
-  - `S3_REGION` - The region your bucket lives in. If you do not know then set this value to `auto`.
-  - `S3_ENDPOINT` - This value will be specific to the bucket as well.
-
-Once the workflow is done, you'll find the disk images either in your S3 bucket or as part of the summary under `Artifacts` after the workflow is completed.
-
-# Artifacthub
-
-This template comes with the necessary tooling to index your image on [artifacthub.io](https://artifacthub.io). Use the `artifacthub-repo.yml` file at the root to verify yourself as the publisher. This is important to you for a few reasons:
-
-- The value of artifacthub is it's one place for people to index their custom images, and since we depend on each other to learn, it helps grow the community. 
-- You get to see your pet project listed with the other cool projects in Cloud Native.
-- Since the site puts your README front and center, it's a good way to learn how to write a good README, learn some marketing, finding your audience, etc. 
-
-[Discussion Thread](https://universal-blue.discourse.group/t/listing-your-custom-image-on-artifacthub/6446)
-
-# Justfile Documentation
-
-The `Justfile` contains various commands and configurations for building and managing container images and virtual machine images using Podman and other utilities. It is also used inside Github Actions.
-
-## Required Utilities
-
-Container build:
-- [just](https://just.systems/man/en/introduction.html)
-- [podman](https://docs.podman.io/en/latest)
-- [jq](https://jqlang.org)
-
-These are usually preinstalled on Universal Blue's Bootc Images.
-
-Linting:
-- shfmt
-- shellcheck
-
-## Environment Variables
-
-These are all sourced from the `image-template.env` file.
-
-- `image_name`: The name of the image (default: "image-template").
-- `default_tag`: The default tag for the image (default: "latest").
-- `bib_image`: The Bootc Image Builder (BIB) image (default: "quay.io/centos-bootc/bootc-image-builder:latest").
-
-## Building The Image
-
-All these recipes will work (with default values) without supplying any arguments to them, e.g. `just build`
-
-### `just build`
-
-Builds a container image using Podman.
-
-```bash
-just build $target_image $tag
-```
-
-Arguments:
-- `$target_image`: The tag you want to apply to the image (default: `$image_name`).
-- `$tag`: The tag for the image (default: `$default_tag`).
-
-### Rechunking
-We can flatten the layers of container images to make sure there isn't a single huge layer when your image gets published.
-This does not make your image faster to download, just provides better resumability.
-
-#### `just ostree-rechunk`
-Rechunks the existing Image with [rpm-ostree](https://coreos.github.io/rpm-ostree/build-chunked-oci/)
-
-```bash
-just ostree-rechunk $target_image $tag
-```
-
-#### `just rechunk`
-Rechunks the existing Image with [chunkah](https://github.com/coreos/chunkah), this is probably gonna be the default here at some point, try it out, it's cool.
-
-```bash
-just rechunk $target_image $tag
-```
-
-### Switching to the locally built image for testing
-
-The image has to be in the containers-storage owned by root, to be able to rebase to it, see the `_rootful_load_image` recipe.
-
-`sudo just build` and `sudo just ostree-rechunk` builds directly as root and allows you to skip the transfer to the root containers-storage.
-
-You can rebase to all the images that are in your containers-storage:
+### GRUB theme
+Theme files go in `/boot/grub2/themes/<name>/` (GRUB cannot read the image's `/usr`). Settings in `/etc/default/grub`:
 
 ```
-sudo podman image list --filter=label=containers.bootc=1
+GRUB_THEME="/boot/grub2/themes/<name>/theme.txt"
+GRUB_GFXMODE=<resolution>,auto
+GRUB_TERMINAL_OUTPUT="gfxterm"
 ```
 
-See [man bootc switch](https://bootc.dev/bootc/man/bootc-switch.8.html) for more info.
+Then regenerate with `ujust regenerate-grub`. Back up first: `sudo cp /etc/default/grub /etc/default/grub.bak`.
+My notes: theme = [Modern Design Theme - Tela](https://github.com/vinceliuice/grub2-themes).
+
+### Windows boot entry
+Either enable os-prober (`GRUB_DISABLE_OS_PROBER=false` in `/etc/default/grub`, then `ujust regenerate-grub`), or add a `chainloader /EFI/Microsoft/Boot/bootmgfw.efi` entry in `/etc/grub.d/40_custom` using the UUID of the EFI partition:
+`<ESP UUID: fill in from lsblk -f>`.
+Keep the BitLocker recovery key handy before changing boot settings.
+
+### Tablet kit (optional)
+`z13-tablet-kit` is installed per user from its own repo (`./install.sh`). It needs `qdbus6`, `gdbus` and `kscreen-doctor` on the PATH.
+#### Install notes: 
 
 ```
-sudo bootc switch --transport containers-storage localhost/myimage:latest
+ln -s /usr/bin/qdbus-qt6 ~/.local/bin/qdbus6
+command -v qdbus6 gdbus kscreen-doctor     # all three must print a path
+python3 -c 'import evdev' && echo evdev ok
+    - If import evdev fails, install it with pip install --user evdev, or check whether the image offers python3-evdev
+git clone https://github.com/aic0d3r/z13-tablet-kit
+cd z13-tablet-kit && ./install.sh
 ```
 
-and reboot your system!
+## Updating pinned packages
 
-## Building and Running Virtual Machines and ISOs
+The z13 RPMs are pinned on purpose. A weekly workflow (`.github/workflows/check-releases.yml`) opens an issue when a newer release exists. To update:
 
-The below commands all build QCOW2 images. To produce or use a different type of image, substitute in the command with that type in the place of `qcow2`. The available types are `qcow2`, `iso`, and `raw`.
+1. Read the release notes of the new version.
+2. In `build_files/build.sh`, change `Z13CTL_PLUS_VERSION` (or `Z13GUI_PLUS_VERSION`) and the matching `*_SHA256`.
+   Get the checksum from the release page, or with:
+   `curl -fsSL <rpm url> | sha256sum`
+3. Commit to `main`. The build verifies the checksum and runs the guard checks.
+4. `sudo bootc upgrade`, reboot, and test.
 
-### `just build-qcow2`
+## Build guard
 
-Builds a QCOW2 virtual machine image.
+At the end of `build_files/build.sh`, the build fails if:
 
-```bash
-just build-qcow2 $target_image $tag
-```
+- `modinfo -k <kernel> ryzen_smu` finds no module in the image,
+- `z13ctl-plus` or `z13gui-plus` is not installed, or
+- the `z13ctl-plus` binary, udev rule, or user units are missing.
 
-### `just rebuild-qcow2`
+A failed scheduled build means the base image changed in a way that matters; check the Actions log before updating.
 
-Rebuilds a QCOW2 virtual machine image.
+## Repository layout
 
-```bash
-just rebuild-vm $target_image $tag
-```
+| Path | Purpose |
+|---|---|
+| `Containerfile` | Base image and build step |
+| `build_files/build.sh` | Packages, pinned RPMs, build guard |
+| `system_files/` | Files copied into `/` in the image (e.g. `etc/modules-load.d/ryzen_smu.conf`) |
+| `.github/workflows/build.yml` | Builds, rechunks, pushes and signs the image |
+| `.github/workflows/check-releases.yml` | Weekly check for new z13 package releases |
+| `disk_config/` | Installer ISO configuration (`build-disk.yml`) |
 
-### `just run-vm-qcow2`
+## Troubleshooting
 
-Runs a virtual machine from a QCOW2 image.
+| Symptom | Likely cause |
+|---|---|
+| `Curve Optimizer not available` | User is not in the `users` group, or the session predates the change; reboot and check `id` |
+| `permission denied` on `/dev/input/event*` in the z13ctl-plus journal | Armoury Crate button device is held by Bazzite's InputPlumber; unrelated to undervolt |
+| Build fails at the guard step | Bazzite dropped `ryzen_smu` or a z13 package changed its files |
+| `bootc switch` is very slow | Large first pull; use wired networking. Later updates are deltas |
+| Pull is denied | Package is private; make it public or `podman login ghcr.io` |
 
-```bash
-just run-vm-qcow2 $target_image $tag
-```
+## Credits and licence
 
-### `just spawn-vm`
-
-Runs a virtual machine using systemd-vmspawn.
-
-```bash
-just spawn-vm rebuild="0" type="qcow2" ram="6G"
-```
-
-## File Management
-
-### `just check`
-
-Checks the syntax of all `.just` files and the `Justfile`.
-
-### `just fix`
-
-Fixes the syntax of all `.just` files and the `Justfile`.
-
-### `just clean`
-
-Cleans the repository by removing build artifacts.
-
-### `just lint`
-
-Runs shell check on all Bash scripts.
-
-### `just format`
-
-Runs shfmt on all Bash scripts.
-
-## Additional resources
-
-For additional driver support, ublue maintains a set of scripts and container images available at [ublue-akmod](https://github.com/ublue-os/akmods). These images include the necessary scripts to install multiple kernel drivers within the container (Nvidia, OpenRazer, Framework...). The documentation provides guidance on how to properly integrate these drivers into your container image.
-
-## Community Examples
-
-These are images derived from this template (or similar enough to this template). Reference them when building your image!
-
-- [m2Giles' OS](https://github.com/m2giles/m2os)
-- [bOS](https://github.com/bsherman/bos)
-- [Homer](https://github.com/bketelsen/homer/)
-- [Amy OS](https://github.com/astrovm/amyos)
-- [VeneOS](https://github.com/Venefilyn/veneos)
+Built from [ublue-os/image-template](https://github.com/ublue-os/image-template) and [Bazzite](https://github.com/ublue-os/bazzite). `z13ctl-plus`, `z13gui-plus` and `z13-tablet-kit` are by [aic0d3r](https://github.com/aic0d3r). This repository is licensed under Apache-2.0.
