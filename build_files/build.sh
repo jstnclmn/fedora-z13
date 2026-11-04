@@ -8,7 +8,7 @@ cp -avf "/ctx/system_files"/. /
 ### Install packages
 
 # this installs a package from fedora repos
-dnf5 install -y tmux powertop
+dnf5 install -y tmux powertop podman-compose
 
 ### z13ctl-plus (pinned release RPM)
 Z13CTL_PLUS_VERSION="2.5.1"
