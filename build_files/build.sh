@@ -16,7 +16,7 @@ dnf5 remove -y intel-gpu-firmware intel-npu-firmware \
 ### Install packages
 
 # this installs a package from fedora repos
-dnf5 install -y tmux powertop podman-compose
+dnf5 install -y tmux powertop podman-compose git
 
 ### z13ctl-plus (pinned release RPM)
 Z13CTL_PLUS_VERSION="2.5.1"
