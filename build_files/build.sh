@@ -5,13 +5,14 @@ set -ouex pipefail
 # Copy the contents of system_files/ of the git repo to /
 cp -avf "/ctx/system_files"/. /
 
-# Slimming round 1 (dry-run verified: 6 packages, ~294 MiB)
+### Slim the image (packages Kinoite does not ship and this machine does not need)
+# Round 1: NVIDIA firmware and Intel GPU/media/OpenCL stack (this is an AMD system)
 dnf5 remove -y nvidia-gpu-firmware libva-intel-media-driver \
-  intel-opencl intel-opencl-clang intel-igc intel-igc-libs
-
-# Slimming round 2: Intel-only firmware (Z13 uses MediaTek Wi-Fi and AMD graphics)
+    intel-opencl intel-opencl-clang intel-igc intel-igc-libs
+# Round 2: Intel GPU/NPU firmware and Intel Wi-Fi firmware
+# (mt7xxx-firmware is NOT removed: it drives the MT7925 Wi-Fi/Bluetooth)
 dnf5 remove -y intel-gpu-firmware intel-npu-firmware \
-  iwlwifi-mvm-firmware iwlwifi-mld-firmware iwlwifi-dvm-firmware iwlegacy-firmware
+    iwlwifi-mvm-firmware iwlwifi-mld-firmware iwlwifi-dvm-firmware iwlegacy-firmware
 
 ### Install packages
 
@@ -19,9 +20,9 @@ dnf5 remove -y intel-gpu-firmware intel-npu-firmware \
 dnf5 install -y tmux powertop podman-compose git
 
 ### z13ctl-plus (pinned release RPM)
-Z13CTL_PLUS_VERSION="2.5.1"
+Z13CTL_PLUS_VERSION="2.5.3"
 Z13CTL_PLUS_RPM="z13ctl-plus_${Z13CTL_PLUS_VERSION}_linux_amd64.rpm"
-Z13CTL_PLUS_SHA256="7bef48550afc74f50357d21f287c49b0ca1751dd86d2f238d602fa8a958f6cd4"
+Z13CTL_PLUS_SHA256="beefd87c805c67e1979dcce1ac822410be8f578f57db9c770e31165ea2604b97"
 
 curl -fsSL -o /tmp/z13ctl-plus.rpm \
   "https://github.com/aic0d3r/z13ctl-plus/releases/download/v${Z13CTL_PLUS_VERSION}/${Z13CTL_PLUS_RPM}"
@@ -30,9 +31,9 @@ dnf5 install -y /tmp/z13ctl-plus.rpm
 rm -f /tmp/z13ctl-plus.rpm
 
 ### z13gui-plus (pinned release RPM)
-Z13GUI_PLUS_VERSION="2.7.0"
+Z13GUI_PLUS_VERSION="2.7.1"
 Z13GUI_PLUS_RPM="z13gui-plus_${Z13GUI_PLUS_VERSION}_linux_amd64.rpm"
-Z13GUI_PLUS_SHA256="2f508ceb112d0fe77babc5f59e569435474e6a5fd916d2bcba4bf8b310c3ac32"
+Z13GUI_PLUS_SHA256="ec8db4eb70ff1cba8ecb6b6fde29d98d1e0e2529f09bcbf78e761aab36907977"
 
 curl -fsSL -o /tmp/z13gui-plus.rpm \
   "https://github.com/aic0d3r/z13gui-plus/releases/download/v${Z13GUI_PLUS_VERSION}/${Z13GUI_PLUS_RPM}"
