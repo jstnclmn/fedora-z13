@@ -5,6 +5,14 @@ set -ouex pipefail
 # Copy the contents of system_files/ of the git repo to /
 cp -avf "/ctx/system_files"/. /
 
+# Slimming round 1 (dry-run verified: 6 packages, ~294 MiB)
+dnf5 remove -y nvidia-gpu-firmware libva-intel-media-driver \
+  intel-opencl intel-opencl-clang intel-igc intel-igc-libs
+
+# Slimming round 2: Intel-only firmware (Z13 uses MediaTek Wi-Fi and AMD graphics)
+dnf5 remove -y intel-gpu-firmware intel-npu-firmware \
+  iwlwifi-mvm-firmware iwlwifi-mld-firmware iwlwifi-dvm-firmware iwlegacy-firmware
+
 ### Install packages
 
 # this installs a package from fedora repos
@@ -61,5 +69,10 @@ test -x /usr/bin/z13ctl-plus
 test -f /usr/lib/udev/rules.d/99-z13ctl-plus.rules
 test -f /usr/lib/systemd/user/z13ctl-plus.service
 test -f /usr/lib/systemd/user/z13ctl-plus.socket
- 
+
+# Firmware and apps that must survive slimming
+rpm -q mt7xxx-firmware amd-gpu-firmware amd-ucode-firmware linux-firmware \
+       realtek-firmware alsa-sof-firmware cirrus-audio-firmware
+rpm -q steam tailscale lutris umu-launcher terra-gamescope fish git podman 
+
 echo "Guard: all checks passed"
