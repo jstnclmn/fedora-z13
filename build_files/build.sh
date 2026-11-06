@@ -5,8 +5,8 @@ set -ouex pipefail
 # Copy the contents of system_files/ of the git repo to /
 cp -avf "/ctx/system_files"/. /
 
-### Slim the image (packages Kinoite does not ship and this machine does not need)
-# Round 1: NVIDIA firmware and Intel GPU/media/OpenCL stack (this is an AMD system)
+### Slim the image (packages Kinoite does not ship and this machine does not need from Bazzite)
+# Round 1: NVIDIA firmware and Intel GPU/media/OpenCL stack
 dnf5 remove -y nvidia-gpu-firmware libva-intel-media-driver \
     intel-opencl intel-opencl-clang intel-igc intel-igc-libs
 # Round 2: Intel GPU/NPU firmware and Intel Wi-Fi firmware
@@ -17,7 +17,7 @@ dnf5 remove -y intel-gpu-firmware intel-npu-firmware \
 ### Install packages
 
 # this installs a package from fedora repos
-dnf5 install -y tmux powertop podman-compose git
+dnf5 install -y tmux powertop podman-compose git chezmoi
 
 ### z13ctl-plus (pinned release RPM)
 Z13CTL_PLUS_VERSION="2.5.3"
@@ -71,9 +71,12 @@ test -f /usr/lib/udev/rules.d/99-z13ctl-plus.rules
 test -f /usr/lib/systemd/user/z13ctl-plus.service
 test -f /usr/lib/systemd/user/z13ctl-plus.socket
 
-# Firmware and apps that must survive slimming
+# 3. Firmware and apps that must survive slimming
 rpm -q mt7xxx-firmware amd-gpu-firmware amd-ucode-firmware linux-firmware \
        realtek-firmware alsa-sof-firmware cirrus-audio-firmware
-rpm -q steam tailscale lutris umu-launcher terra-gamescope fish git podman 
+rpm -q steam tailscale lutris umu-launcher terra-gamescope fish git podman
+
+# 4. Dotfile manager
+rpm -q chezmoi
 
 echo "Guard: all checks passed"
