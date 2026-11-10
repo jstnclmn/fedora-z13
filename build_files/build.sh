@@ -20,9 +20,9 @@ dnf5 remove -y intel-gpu-firmware intel-npu-firmware \
 dnf5 install -y tmux powertop podman-compose git chezmoi
 
 ### z13ctl-plus (pinned release RPM)
-Z13CTL_PLUS_VERSION="2.5.3"
+Z13CTL_PLUS_VERSION="2.6.0"
 Z13CTL_PLUS_RPM="z13ctl-plus_${Z13CTL_PLUS_VERSION}_linux_amd64.rpm"
-Z13CTL_PLUS_SHA256="beefd87c805c67e1979dcce1ac822410be8f578f57db9c770e31165ea2604b97"
+Z13CTL_PLUS_SHA256="cb90fd099bc42cc4446f9b5b235eb432cfe75827258785bdc61f1df61ef0b056"
 
 curl -fsSL -o /tmp/z13ctl-plus.rpm \
   "https://github.com/aic0d3r/z13ctl-plus/releases/download/v${Z13CTL_PLUS_VERSION}/${Z13CTL_PLUS_RPM}"
@@ -31,9 +31,9 @@ dnf5 install -y /tmp/z13ctl-plus.rpm
 rm -f /tmp/z13ctl-plus.rpm
 
 ### z13gui-plus (pinned release RPM)
-Z13GUI_PLUS_VERSION="2.7.1"
+Z13GUI_PLUS_VERSION="2.8.0"
 Z13GUI_PLUS_RPM="z13gui-plus_${Z13GUI_PLUS_VERSION}_linux_amd64.rpm"
-Z13GUI_PLUS_SHA256="ec8db4eb70ff1cba8ecb6b6fde29d98d1e0e2529f09bcbf78e761aab36907977"
+Z13GUI_PLUS_SHA256="542cae0eec3016cda04a84e4cd0a7352bbc4728932e0ef9d98730c8a9c213717"
 
 curl -fsSL -o /tmp/z13gui-plus.rpm \
   "https://github.com/aic0d3r/z13gui-plus/releases/download/v${Z13GUI_PLUS_VERSION}/${Z13GUI_PLUS_RPM}"
